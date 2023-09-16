@@ -6,13 +6,11 @@ ENV DEBIAN_FRONTEND noninteractive
 # generic build tools  ... libgsf needs intltool
 RUN apt-get update \
   && apt-get install -y \
-    build-essential \
-    libtool \
-    wget \
-    python3-pip \
-    ninja-build \
-    intltool \
-    pkg-config 
+  build-essential \
+  wget \
+  python3-pip \
+  ninja-build \
+  pkg-config
 
 RUN pip3 install meson
 
@@ -21,7 +19,7 @@ RUN pip3 install meson
 # see https://devcenter.heroku.com/articles/stack-packages
 #
 # libgsf needs libxml2
-# 
+#
 # this should only pull in header files and should not create any extra run
 # time dependencies
 RUN apt-get install -y \
@@ -35,85 +33,27 @@ RUN apt-get install -y \
   libtiff5-dev \
   libexif-dev \
   liblcms2-dev \
-  libxml2-dev \
-  libfftw3-dev \
-  libopenexr-dev \
-  libgirepository1.0-dev \
-  libmagickcore-dev
+  libgsf-1-dev \
+  liborc-0.4-dev \
+  libimagequant-dev \
+  libcgif-dev \
+  libheif-dev \
+  libfftw3-dev
 
 WORKDIR /usr/local/src
 
-# build to this prefix 
-#  - heroku has /usr/local/lib on the default ld.so.conf search path, so 
+# build to this prefix
+#  - heroku has /usr/local/lib on the default ld.so.conf search path, so
 #    this is convenient
 #  - heroku has a basic dir structure in /usr/local, but no files
 ARG PREFIX=/usr/local
 ENV PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig
 
-# the main libimagequant is now gpl3 and we can't use it ... this is a 
-# maintained fork of the old BSD-licensed version
-ARG IMAGEQUANT_VERSION=main
-ARG IMAGEQUANT_URL=https://github.com/lovell/libimagequant
+# last updated 16sep23
+ARG PDFIUM_VERSION=6002
+ARG PDFIUM_URL=https://github.com/bblanchon/pdfium-binaries/releases/download/chromium
 
-RUN git clone $IMAGEQUANT_URL \
-  && cd libimagequant \
-  && git checkout $IMAGEQUANT_VERSION \
-  && meson build --prefix=${PREFIX} --libdir=lib \
-  && cd build \
-  && ninja \
-  && ninja install
-
-ARG ORC_VERSION=0.4.32
-ARG ORC_URL=https://gstreamer.freedesktop.org/src/orc
-
-RUN wget ${ORC_URL}/orc-$ORC_VERSION.tar.xz \
-  && tar xf orc-${ORC_VERSION}.tar.xz \
-  && cd orc-${ORC_VERSION} \
-  && meson build --prefix=${PREFIX} --libdir=lib \
-  && cd build \
-  && ninja \
-  && ninja install
-
-ARG GSF_VERSION=1.14.48
-ARG GSF_URL=http://ftp.gnome.org/pub/GNOME/sources/libgsf
-
-RUN wget ${GSF_URL}/${GSF_VERSION%.*}/libgsf-$GSF_VERSION.tar.xz \
-  && tar xf libgsf-${GSF_VERSION}.tar.xz \
-  && cd libgsf-${GSF_VERSION} \
-  && ./configure --prefix=$PREFIX --disable-gtk-doc \
-  && make \
-  && make install
-
-# use cgif for GIF write
-ARG CGIF_VERSION=0.2.0
-ARG CGIF_URL=https://github.com/dloebl/cgif/archive/refs/tags
-
-RUN wget ${CGIF_URL}/V${CGIF_VERSION}.tar.gz \
-  && tar xf V${CGIF_VERSION}.tar.gz \
-  && cd cgif-${CGIF_VERSION} \
-  && meson build --prefix=${PREFIX} --libdir=lib \
-  && cd build \
-  && ninja \
-  && ninja install
-
-# use libspng for PNG load and save
-ARG SPNG_VERSION=0.7.2
-ARG SPNG_URL=https://github.com/randy408/libspng/archive/refs/tags
-
-RUN wget ${SPNG_URL}/v${SPNG_VERSION}.tar.gz \
-  && tar xf v${SPNG_VERSION}.tar.gz \
-  && cd libspng-${SPNG_VERSION} \
-  && meson build --prefix=${PREFIX} --libdir=lib \
-  && cd build \
-  && ninja \
-  && ninja install
-
-# the version number is was correct in feb 2022 ... it just needs to be >4200
-# for libvips
-ARG PDFIUM_URL=https://github.com/bblanchon/pdfium-binaries/releases/latest/download
-ARG PDFIUM_VERSION=4901
-
-RUN wget $PDFIUM_URL/pdfium-linux-x64.tgz \
+RUN wget $PDFIUM_URL/$PDFIUM_VERSION/pdfium-linux-x64.tgz \
   && mkdir pdfium \
   && cd pdfium \
   && tar xf ../pdfium-linux-x64.tgz \
@@ -134,37 +74,33 @@ RUN mkdir -p $PREFIX/lib/pkgconfig \
   && echo "Libs: -L\${libdir} -lpdfium" >> pdfium.pc \
   && echo "Cflags: -I\${includedir}" >> pdfium.pc
 
-ARG DE265_VERSION=1.0.12
-ARG DE265_URL=https://github.com/strukturag/libde265/releases/download
+# use libspng for PNG load and save
+ARG SPNG_VERSION=0.7.4
+ARG SPNG_URL=https://github.com/randy408/libspng/archive/refs/tags
 
-RUN wget ${DE265_URL}/v${DE265_VERSION}/libde265-${DE265_VERSION}.tar.gz \
-  && tar xf libde265-${DE265_VERSION}.tar.gz \
-  && cd libde265-${DE265_VERSION} \
-  && ./autogen.sh \
-  && ./configure --prefix=$PREFIX \
-  && make V=0 \
-  && make install
+RUN wget ${SPNG_URL}/v${SPNG_VERSION}.tar.gz \
+  && tar xf v${SPNG_VERSION}.tar.gz \
+  && cd libspng-${SPNG_VERSION} \
+  && meson build --prefix=${PREFIX} --libdir=lib \
+  && cd build \
+  && ninja \
+  && ninja install
 
-ARG HEIF_VERSION=1.10.0
-ARG HEIF_URL=https://github.com/strukturag/libheif/releases/download
+ARG VIPS_VERSION=8.14.4
+ARG VIPS_URL=https://github.com/libvips/libvips/releases/download
 
-RUN wget ${HEIF_URL}/v${HEIF_VERSION}/libheif-${HEIF_VERSION}.tar.gz \
-  && tar xf libheif-${HEIF_VERSION}.tar.gz \
-  && cd libheif-${HEIF_VERSION} \
-  && ./configure --prefix=$VIPS_PREFIX \
-  && make V=0 \
-  && make install
-
-ARG VIPS_VERSION=8.14.3
-ARG VIPS_URL=https://github.com/libvips/libvips/archive/refs/tags
-
-RUN wget ${VIPS_URL}/v${VIPS_VERSION}/v${VIPS_VERSION}.tar.gz \
-  && tar xzf v${VIPS_VERSION}.tar.gz \
-  && cd libvips-${VIPS_VERSION} \
-  && meson setup build --buildtype=release --prefix=$PREFIX --libdir=lib \
+RUN wget ${VIPS_URL}/v${VIPS_VERSION}/vips-${VIPS_VERSION}.tar.xz \
+  && tar xf vips-${VIPS_VERSION}.tar.xz \
+  && cd vips-${VIPS_VERSION} \
+  && meson setup build \
+  --prefix=$PREFIX \
+  --libdir=lib \
+  --buildtype=release \
+  -Dradiance=false \
+  -Danalyze=false \
+  -Dintrospection=false \
   && cd build \
   && meson compile \
-  && meson test \
   && meson install
 
 # clean and package
@@ -193,8 +129,9 @@ RUN cd $PREFIX \
   && vips --vips-config >> "build/heroku-$STACK_VERSION.config.log"
 
 # install and test ruby-vips to confirm we can pick up the libraries
-# correctly 
+# correctly
 # we need ruby-dev to install ruby-ffi
+ENV LD_LIBRARY_PATH=$PREFIX/lib
 RUN apt-get install -y ruby-dev
 RUN gem install ruby-vips
 RUN ruby -e 'require "vips"; puts "ruby-vips: libvips #{Vips::LIBRARY_VERSION}"'
